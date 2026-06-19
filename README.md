@@ -537,7 +537,7 @@ Start using SkyWings today and experience the next generation of web application
 
 ---
 
-**Built with ❤️ by NWU IPL Team**
+**Built with ❤️ by Ayash Rahman & Farzana Munia**
 
 ⭐ If you find this project helpful, please give it a star!
 
