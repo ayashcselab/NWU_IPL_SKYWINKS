@@ -1,0 +1,339 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId} (Firebase Auth UID)
+    // Fields:
+    //   - uid: string (required) - The unique identifier for the user.
+    //   - email: string (required, email format) - The user's email address.
+    //   - displayName: string (required) - The user's display name.
+    //   - createdAt: timestamp (required) - The timestamp when the user profile was created.
+    //
+    // Collection: bookings
+    // Document ID: {bookingId}
+    // Fields:
+    //   - userId: string (required) - The UID of the user who made the booking.
+    //   - userEmail: string (required, email format) - The email of the user who made the booking.
+    //   - fullName: string (required) - The full name for the booking.
+    //   - email: string (required, email format) - The contact email for the booking.
+    //   - destination: string (required) - The flight destination.
+    //   - people: string (required) - Number of people.
+    //   - date: string (required) - Date of reservation.
+    //   - path: string (required) - One Way or Round Trip.
+    //   - status: string (required) - pending, accepted, cancelled.
+    //   - createdAt: timestamp (required) - When the booking was requested.
+    //
+    // Collection: notifications
+    // Document ID: {notificationId}
+    // Fields:
+    //   - userId: string (required) - The UID of the recipient (or 'admin').
+    //   - message: string (required) - The notification message.
+    //   - type: string (required) - booking_request, booking_accepted, booking_cancelled.
+    //   - bookingId: string (optional) - Reference to the booking.
+    //   - read: bool (required) - Whether the notification has been read.
+    //   - createdAt: timestamp (required) - When the notification was created.
+    //
+    // Collection: boarding_passes
+    // Document ID: {passId}
+    // Fields:
+    //   - bookingId: string (required) - Reference to the booking.
+    //   - userId: string (required) - The UID of the owner.
+    //   - passengerName: string (required) - Name on the pass.
+    //   - destination: string (required) - Trip destination.
+    //   - date: string (required) - Trip date.
+    //   - seatNumber: string (required) - Assigned seat.
+    //   - gate: string (required) - Departure gate.
+    //   - class: string (required) - Travel class.
+    //   - status: string (required) - active, used, cancelled.
+    //   - createdAt: timestamp (required) - When the pass was created.
+    //
+    // Collection: personal_requests
+    // Document ID: {requestId}
+    // Fields:
+    //   - userId: string (required) - The UID of the user.
+    //   - userEmail: string (required, email format) - User's email.
+    //   - fullName: string (required) - Full name for the request.
+    //   - email: string (required, email format) - Contact email.
+    //   - destination: string (required) - Requested destination.
+    //   - people: string (required) - Number of people.
+    //   - date: string (required) - Requested date.
+    //   - path: string (required) - One Way or Round Trip.
+    //   - status: string (required) - pending, accepted, cancelled.
+    //   - createdAt: timestamp (required) - When the request was created.
+    //
+    // Collection: packages
+    // Document ID: {packageId}
+    // Fields:
+    //   - title: string (required)
+    //   - arrival: string (required)
+    //   - departure: string (required)
+    //   - price: number (required)
+    //   - duration: string (required)
+    //   - image: string (required, uri)
+    //   - rating: number (required)
+    //   - description: string (optional)
+    //   - inclusions: list (optional)
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: social_links
+    // Document ID: {linkId}
+    // Fields:
+    //   - platform: string (required)
+    //   - url: string (required, uri)
+    //   - active: bool (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "ayashcselab@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string &&
+        email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // Domain Validators
+    function isValidUser(data) {
+      return hasRequiredFields(['uid', 'email', 'displayName', 'createdAt']) &&
+             data.uid is string && 
+             data.email is string && isValidEmail(data.email) &&
+             data.displayName is string && data.displayName.size() > 0 && data.displayName.size() < 100 &&
+             data.createdAt is timestamp &&
+             (!('phone' in data) || (data.phone is string && data.phone.size() < 20)) &&
+             (!('address' in data) || (data.address is string && data.address.size() < 200)) &&
+             (!('avatarUrl' in data) || (data.avatarUrl is string && data.avatarUrl.size() < 500)) &&
+             (!('bio' in data) || (data.bio is string && data.bio.size() < 500)) &&
+             (!('preferences' in data) || (data.preferences is list && data.preferences.size() <= 10)) &&
+             (!('loyaltyPoints' in data) || (data.loyaltyPoints is int));
+    }
+
+    function isValidBooking(data) {
+      return hasRequiredFields(['userId', 'userEmail', 'fullName', 'email', 'destination', 'people', 'date', 'path', 'status', 'createdAt']) &&
+             data.userId is string &&
+             data.userEmail is string && isValidEmail(data.userEmail) &&
+             data.fullName is string && data.fullName.size() > 0 &&
+             data.email is string && isValidEmail(data.email) &&
+             data.destination is string && data.destination.size() > 0 &&
+             data.people is string &&
+             data.date is string &&
+             data.path is string &&
+             data.status in ['pending', 'paynow', 'paid', 'accepted', 'completed', 'cancelled'] &&
+             data.createdAt is timestamp &&
+             (!('paymentAmount' in data) || (data.paymentAmount is string)) &&
+             (!('transactionStatus' in data) || (data.transactionStatus is string)) &&
+             (!('paymentAt' in data) || (data.paymentAt is timestamp)) &&
+             (!('paymentMethod' in data) || (data.paymentMethod is map));
+    }
+
+    function isValidNotification(data) {
+      return hasRequiredFields(['userId', 'message', 'type', 'read', 'createdAt']) &&
+             data.userId is string &&
+             data.message is string && data.message.size() > 0 &&
+             data.type in ['booking_request', 'booking_accepted', 'booking_cancelled', 'payment_confirmed', 'trip_completed', 'package_booking'] &&
+             data.read is bool &&
+             data.createdAt is timestamp &&
+             (!('bookingId' in data) || (data.bookingId is string)) &&
+             (!('requestId' in data) || (data.requestId is string));
+    }
+
+    function isValidBoardingPass(data) {
+      return hasRequiredFields(['bookingId', 'userId', 'passengerName', 'destination', 'date', 'seatNumber', 'gate', 'class', 'status', 'createdAt']) &&
+             data.bookingId is string &&
+             data.userId is string &&
+             data.passengerName is string && data.passengerName.size() > 0 &&
+             data.destination is string && data.destination.size() > 0 &&
+             data.date is string &&
+             data.seatNumber is string &&
+             data.gate is string &&
+             data.class is string &&
+             data.status in ['active', 'used', 'cancelled'] &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidPersonalRequest(data) {
+      return hasRequiredFields(['userId', 'userEmail', 'fullName', 'email', 'passportNumber', 'destination', 'people', 'date', 'path', 'status', 'createdAt']) &&
+             data.userId is string &&
+             data.userEmail is string && isValidEmail(data.userEmail) &&
+             data.fullName is string && data.fullName.size() > 0 &&
+             data.email is string && isValidEmail(data.email) &&
+             data.passportNumber is string && data.passportNumber.size() > 0 &&
+             data.destination is string && data.destination.size() > 0 &&
+             data.people is string &&
+             data.date is string &&
+             data.path is string &&
+             data.status in ['pending', 'paynow', 'paid', 'accepted', 'completed', 'cancelled'] &&
+             data.createdAt is timestamp &&
+             (!('paymentAmount' in data) || (data.paymentAmount is string)) &&
+             (!('transactionStatus' in data) || (data.transactionStatus is string)) &&
+             (!('paymentAt' in data) || (data.paymentAt is timestamp)) &&
+             (!('paymentMethod' in data) || (data.paymentMethod is map));
+    }
+
+    function isValidPackage(data) {
+      return hasRequiredFields(['title', 'arrival', 'departure', 'price', 'duration', 'image', 'rating', 'createdAt']) &&
+             data.title is string && data.title.size() > 0 &&
+             data.arrival is string &&
+             data.departure is string &&
+             data.price is number &&
+             data.duration is string &&
+             data.image is string &&
+             data.rating is number &&
+             data.createdAt is timestamp;
+    }
+
+    // Collection: social_links
+    // Document ID: {linkId}
+    // Fields:
+    //   - platform: string (required)
+    //   - url: string (required, uri)
+    //   - active: bool (required)
+    //
+    // Collection: chat_history
+    // Document ID: {messageId}
+    // Fields:
+    //   - userId: string (required)
+    //   - text: string (required)
+    //   - role: string (required, enum: user, model)
+    //   - mode: string (required, enum: thinking, quick)
+    //   - createdAt: timestamp (required)
+    //
+    // ===============================================================
+
+    function isValidSocialLink(data) {
+      return hasRequiredFields(['platform', 'url', 'active']) &&
+             data.platform is string &&
+             data.url is string &&
+             data.active is bool;
+    }
+
+    function isValidChatMessage(data) {
+      return hasRequiredFields(['userId', 'text', 'role', 'mode', 'createdAt']) &&
+             data.userId is string &&
+             data.text is string && data.text.size() > 0 && data.text.size() < 10000 &&
+             data.role in ['user', 'model'] &&
+             data.mode in ['thinking', 'quick'] &&
+             data.createdAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.uid == userId;
+      allow update: if (isOwner(userId) && 
+                       isValidUser(request.resource.data) &&
+                       request.resource.data.uid == resource.data.uid &&
+                       request.resource.data.uid == userId &&
+                       request.resource.data.email == resource.data.email &&
+                       request.resource.data.createdAt == resource.data.createdAt) ||
+                       (isAdmin() && isValidUser(request.resource.data) && request.resource.data.uid == userId);
+      allow delete: if isAdmin();
+    }
+
+    match /bookings/{bookingId} {
+      allow read: if (isAuthenticated() && resource.data.userId == request.auth.uid) || isAdmin();
+      allow create: if isAuthenticated() && isValidBooking(request.resource.data);
+      allow update: if (isAuthenticated() && 
+                       resource.data.userId == request.auth.uid && 
+                       (
+                         (request.resource.data.status == 'cancelled' && resource.data.status in ['pending', 'paynow', 'accepted']) ||
+                         (request.resource.data.status == 'paid' && resource.data.status == 'paynow')
+                       )) ||
+                       (isAdmin() && isValidBooking(request.resource.data));
+      allow delete: if isAdmin();
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if (isAuthenticated() && resource.data.userId == request.auth.uid) || isAdmin();
+      allow create: if isAuthenticated() && isValidNotification(request.resource.data);
+      allow update: if (isAuthenticated() && resource.data.userId == request.auth.uid) || isAdmin();
+      allow delete: if (isAuthenticated() && resource.data.userId == request.auth.uid) || isAdmin();
+    }
+
+    match /boarding_passes/{passId} {
+      allow read: if (isAuthenticated() && resource.data.userId == request.auth.uid) || isAdmin();
+      allow create: if (isAuthenticated() && 
+                      isValidBoardingPass(request.resource.data) && 
+                      request.resource.data.userId == request.auth.uid &&
+                      (
+                        (exists(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)) && 
+                         get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.userId == request.auth.uid &&
+                         get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.status == 'paid') ||
+                        (exists(/databases/$(database)/documents/personal_requests/$(request.resource.data.bookingId)) && 
+                         get(/databases/$(database)/documents/personal_requests/$(request.resource.data.bookingId)).data.userId == request.auth.uid &&
+                         get(/databases/$(database)/documents/personal_requests/$(request.resource.data.bookingId)).data.status == 'paid')
+                      )) || (isAdmin() && isValidBoardingPass(request.resource.data));
+      allow update: if isAdmin() && isValidBoardingPass(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /personal_requests/{requestId} {
+      allow read: if (isAuthenticated() && resource.data.userId == request.auth.uid) || isAdmin();
+      allow create: if isAuthenticated() && isValidPersonalRequest(request.resource.data);
+      allow update: if (isAuthenticated() && 
+                       resource.data.userId == request.auth.uid && 
+                       (
+                         (request.resource.data.status == 'cancelled' && resource.data.status in ['pending', 'paynow', 'paid', 'accepted']) ||
+                         (request.resource.data.status == 'paid' && resource.data.status == 'paynow')
+                       )) ||
+                       (isAdmin() && isValidPersonalRequest(request.resource.data));
+      allow delete: if isAdmin();
+    }
+
+    match /packages/{packageId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidPackage(request.resource.data);
+      allow update: if isAdmin() && isValidPackage(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /social_links/{linkId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidSocialLink(request.resource.data);
+      allow update: if isAdmin() && isValidSocialLink(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /chat_history/{messageId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && 
+                    isValidChatMessage(request.resource.data) && 
+                    request.resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // Default deny
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

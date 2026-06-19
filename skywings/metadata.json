@@ -1,0 +1,5 @@
+{
+  "name": "SKYWINGS",
+  "description": "A secure authentication system for SKYWINGS, featuring signup and signin with Firebase.",
+  "requestFramePermissions": []
+}

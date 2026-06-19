@@ -1,0 +1,175 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Auth UID" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "avatarUrl": { "type": "string", "format": "uri" },
+        "bio": { "type": "string" },
+        "preferences": { "type": "array", "items": { "type": "string" } },
+        "loyaltyPoints": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "displayName", "createdAt"]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "Flight booking request",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string", "format": "email" },
+        "fullName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "passportNumber": { "type": "string" },
+        "phoneNumber": { "type": "string" },
+        "address": { "type": "string" },
+        "destination": { "type": "string" },
+        "people": { "type": "string" },
+        "date": { "type": "string" },
+        "path": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "paid", "accepted", "completed", "cancelled"] },
+        "bagCount": { "type": "integer" },
+        "emergencyFirstName": { "type": "string" },
+        "emergencyLastName": { "type": "string" },
+        "emergencyEmail": { "type": "string" },
+        "emergencyPhone": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userEmail", "fullName", "email", "passportNumber", "phoneNumber", "destination", "people", "date", "path", "status", "createdAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "User notification",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string", "enum": ["booking_request", "booking_accepted", "booking_cancelled", "payment_confirmed"] },
+        "bookingId": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "message", "type", "read", "createdAt"]
+    },
+    "BoardingPass": {
+      "title": "BoardingPass",
+      "description": "Flight boarding pass information",
+      "type": "object",
+      "properties": {
+        "bookingId": { "type": "string" },
+        "userId": { "type": "string" },
+        "passengerName": { "type": "string" },
+        "destination": { "type": "string" },
+        "date": { "type": "string" },
+        "seatNumber": { "type": "string" },
+        "gate": { "type": "string" },
+        "class": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "used", "cancelled"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["bookingId", "userId", "passengerName", "destination", "date", "seatNumber", "gate", "class", "status", "createdAt"]
+    },
+    "PersonalRequest": {
+      "title": "PersonalRequest",
+      "description": "Personal booking request",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string", "format": "email" },
+        "fullName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "passportNumber": { "type": "string" },
+        "destination": { "type": "string" },
+        "people": { "type": "string" },
+        "date": { "type": "string" },
+        "path": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "paid", "accepted", "completed", "cancelled"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userEmail", "fullName", "email", "destination", "people", "date", "path", "status", "createdAt"]
+    },
+    "Package": {
+      "title": "Package",
+      "description": "Travel package details",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "arrival": { "type": "string" },
+        "departure": { "type": "string" },
+        "price": { "type": "number" },
+        "duration": { "type": "string" },
+        "image": { "type": "string", "format": "uri" },
+        "rating": { "type": "number" },
+        "description": { "type": "string" },
+        "inclusions": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "arrival", "departure", "price", "duration", "image", "rating", "createdAt"]
+    },
+    "SocialLink": {
+      "title": "SocialLink",
+      "description": "Social media links for the site",
+      "type": "object",
+      "properties": {
+        "platform": { "type": "string" },
+        "url": { "type": "string", "format": "uri" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["platform", "url", "active"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "AI Assistant chat message",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "text": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "model"] },
+        "mode": { "type": "string", "enum": ["thinking", "quick"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "text", "role", "mode", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/bookings/{bookingId}": {
+      "schema": "Booking",
+      "description": "Flight booking requests"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "User notifications"
+    },
+    "/boarding_passes/{passId}": {
+      "schema": "BoardingPass",
+      "description": "Flight boarding passes"
+    },
+    "/personal_requests/{requestId}": {
+      "schema": "PersonalRequest",
+      "description": "Personal booking requests"
+    },
+    "/packages/{packageId}": {
+      "schema": "Package",
+      "description": "Travel packages"
+    },
+    "/social_links/{linkId}": {
+      "schema": "SocialLink",
+      "description": "Social media links"
+    },
+    "/chat_history/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "AI Assistant chat history"
+    }
+  }
+}
